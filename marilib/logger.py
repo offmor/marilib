@@ -16,7 +16,7 @@ class MetricsLogger:
     log_dir_base: str = "logs"
     rotation_interval_minutes: int = 1440  # 1 day
     already_logged_setup_parameters: bool = False
-    log_interval_seconds: float = 1.0
+    log_interval_seconds: float = 2.0
     last_log_time: Dict[int, datetime] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -109,8 +109,8 @@ class MetricsLogger:
             "pdr_downlink",
             "pdr_uplink",
             "rssi_dbm_5s",
-            "last_latency_ms",
             "avg_latency_ms",
+            "latency_ms",
         ]
         self._nodes_writer.writerow(nodes_header)
 
@@ -148,6 +148,8 @@ class MetricsLogger:
             f"{gateway.metrics_stats.avg_ms:.2f}",
         ]
         self._gateway_writer.writerow(row)
+        if self._gateway_file:
+            self._gateway_file.flush()
 
     def log_all_nodes_metrics(self, nodes: List[MariNode]):
         """Writes metrics for all nodes, handling rotation."""
@@ -156,6 +158,9 @@ class MetricsLogger:
 
         timestamp = datetime.now().isoformat()
         for node in nodes:
+            last_ms = node.metrics_stats.last_ms
+            avg_ms = node.metrics_stats.avg_ms
+
             row = [
                 timestamp,
                 f"0x{node.gateway_address:016X}",
@@ -170,10 +175,13 @@ class MetricsLogger:
                 f"{node.pdr_downlink:.2%}",
                 f"{node.pdr_uplink:.2%}",
                 node.stats.received_rssi_dbm(5),
-                f"{node.metrics_stats.last_ms:.2f}",
-                f"{node.metrics_stats.avg_ms:.2f}",
+                f"{avg_ms:.2f}",
+                f"{last_ms:.2f}",
             ]
             self._nodes_writer.writerow(row)
+
+        if self._nodes_file:
+            self._nodes_file.flush()
 
     def log_event(
         self, gateway_address: int, node_address: int, event_name: str, event_tag: str = ""
